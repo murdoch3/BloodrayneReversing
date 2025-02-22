@@ -4,6 +4,7 @@
 import struct
 import os
 import glob
+import argparse
 
 ################################################################################
 # Utility functions
@@ -121,18 +122,33 @@ def extract_pod3(podfile, output_dir):
         file_name = get_entry_filename(data, header, entry)
         file_contents = get_entry_file_content(data, entry)
 
-        # TODO: Need to handle file_names that contain additional paths
-        # Now write to output_dir 
         output_path = os.path.join(output_dir, os.path.basename(podfile), *file_name.split('\\'))
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         with open(output_path, 'wb') as f:
             f.write(file_contents)
 
-def extract_pod3_from_dir(poddir):
+def extract_pod3_from_dir(poddir, output_dir):
     # Note: glob uses case insensitive matching
     wc_path = os.path.join(poddir, "*.pod")
     pod_files = glob.glob(wc_path)
     for pod in pod_files:
         print(f"Extracting {pod}...")
-        extract_pod3(pod, "extracted")
+        extract_pod3(pod, output_dir)
 
+def main():
+    parser = argparse.ArgumentParser(prog='extract_pod3.py', 
+                                     description='Extracts POD3 files for Bloodrayne 1 and 2')
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('-f', '--file', help='POD3 archive file to extract')
+    group.add_argument('-d', '--directory', help='Directory to extract POD3 files from')
+    parser.add_argument('-o', '--output_dir', help='Directory to extract the contents to', default=os.getcwd())
+    args = parser.parse_args()
+    if args.file:
+        print(f"Extracting {args.file}...")
+        extract_pod3(args.file, args.output_dir)
+    elif args.directory:
+        extract_pod3_from_dir(args.directory, args.output_dir)
+
+
+if __name__ == '__main__':
+    main()
