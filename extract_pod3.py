@@ -2,7 +2,8 @@
 # This script can be used to extract them 
 
 import struct
-
+import os
+import glob
 
 ################################################################################
 # Utility functions
@@ -86,14 +87,6 @@ def read_header(data):
         header[HEADER_TITLES[i]] = raw_header[i]
     return header
 
-# TODO: Confirm that this is actually the names section
-# This seems to happen between the header and the entries 
-# Doesn't seem to happen in every file 
-# After reviewing, I think this might be data that each entry refers back to
-def read_strings(data, entry_offset):
-    x = data[HEADER_SIZE:entry_offset]
-    return x.split(b'\x0D\x0A')
-
 # Read the entry at the current offset
 def read_entry(data, offset):
     raw_entry = struct.unpack(ENTRY_FORMAT, data[offset:offset+ENTRY_SIZE])
@@ -110,21 +103,36 @@ def read_entries(data, entry_offset, entry_count):
     return entries 
 
 def get_entry_filename(data, header, entry):
-    #pod_file.seek(self.index_offset + (self.file_count * DIR_ENTRY_SIZE) + metadata["path_offset"])
-    #file_name = self._get_c_string(pod_file.read(FILE_NAME_LENGTH))
-    # start is at 
     filename_start = header["entry_offset"] + header["entry_count"]*ENTRY_SIZE + entry["name_offset"]
     filename_length = 256 # not sure how we know this ... 
-    # data[filename_start:filename_start+filename_length]
-    print(read_c_string(data, filename_start, filename_length))
+    return read_c_string(data, filename_start, filename_length)
 
+def get_entry_file_content(data, entry):
+    file_start = entry['offset']
+    file_size = entry['size']
+    return data[file_start:file_start+file_size]
 
-with open('C:/Users/murdoch/Downloads/BloodRayne (USA)/BloodRayne (USA)/english.pod', 'rb') as f:
-    data = f.read()
+def extract_pod3(podfile, output_dir):
+    with open(podfile, 'rb') as f:
+        data = f.read() 
+        
+    header = read_header(data)
+    for entry in read_entries(data, header['entry_offset'], header['entry_count']):
+        file_name = get_entry_filename(data, header, entry)
+        file_contents = get_entry_file_content(data, entry)
 
-header = read_header(data)
-print(header)
-#print(len(read_strings(data, header["entry_offset"])))
-entries = read_entries(data, header['entry_offset'], header['entry_count'])
-for entry in entries:
-    get_entry_filename(data, header, entry)
+        # TODO: Need to handle file_names that contain additional paths
+        # Now write to output_dir 
+        output_path = os.path.join(output_dir, os.path.basename(podfile), *file_name.split('\\'))
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        with open(output_path, 'wb') as f:
+            f.write(file_contents)
+
+def extract_pod3_from_dir(poddir):
+    # Note: glob uses case insensitive matching
+    wc_path = os.path.join(poddir, "*.pod")
+    pod_files = glob.glob(wc_path)
+    for pod in pod_files:
+        print(f"Extracting {pod}...")
+        extract_pod3(pod, "extracted")
+
